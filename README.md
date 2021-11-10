@@ -10,7 +10,7 @@ A brief overview of the method and some results are presented in this [video](ht
 
 The general idea is to replace the use of isotropic Gaussian filters, as conventionally used for smoothing fMRI data, with filters that adapt to cortical morphology. An example set of such filters localized at eight different positions across the cortex are shown below; note that these spatial filters are defined in 3D space but the contours of a 2D slice of them is only shown. 
 
-![Cortical morphology-adapted spatial filters](figs/atoms.pdf?raw=true)
+![Cortical morphology-adapted spatial filters](https://github.com/aitchbi/GRASS/figs/atoms.pdf?raw=true)
 (a) Voxels that fall within the cerebral cortex&#151;as defined by the region in between the pial (green) and white (white) surfaces&#151;of a given hemisphere define the vertices of a cerebral hemisphere cortex (CHC) graph, and the graph edges are defined based on geodesic adjacency of voxels within their 3x3x3 voxel neighborhood. (b) When performing volumetric smoothing of fMRI data, Gaussian kernels are conventionally used, which are isotropic and not adapted to the underlying cortical morphology; contours of a Gaussian kernel with FWHM = 8 mm is displayed. (c) Using CHC graphs, spatial filters that adapt to the underlying cortical morphology are designed; in particular, a unique spatial filter is obtained at each position (voxel) within the cerebral cortex. Contours of eight representative graph filters associated to a heat kernel spectral profile, with parameter tau = 40 (see below), are displayed.
 
 
