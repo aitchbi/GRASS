@@ -8,6 +8,11 @@ function [cOrds,e,G,Gc] = spgg_cheby_order_est(g,arange,opts)
 %   arange: spectral range, typically [0,lmax].
 %   opts.minOrds: an Nx1 vector of min cheby order to consider for each kernel.
 %   opts.maxOrds: an Nx1 vector of max cheby order to consider for each kernel.
+%   opts.ordStep: an integer, specifying steps to take between minOrd and
+%   maxOrd; this is useful for speeding up the search, but there is alo a
+%   risk that you skip a suitable order, and then you need to increase the
+%   order notably higher for another suitable order. This step is only used
+%   for estimating cOrds.kernel. (default=1)
 %   opts.tol:  
 %       - tol.kernel: tolerence when checking absolute difference between
 %       estimate an orginal kernel.
@@ -40,20 +45,37 @@ function [cOrds,e,G,Gc] = spgg_cheby_order_est(g,arange,opts)
 %   Gc: tight frame condition across spectrum using approximated kernels. 
 %
 % Hamid Behjat
-% Sep 2019 - Oct 2021.
+% Sep 2019 - 26 Feb 2022.
+
+Ng = length(g);
 
 if ~exist('opts','var') || isempty(opts)
     opts=struct;
 end
 if ~isfield(opts,'minOrds') || isempty(opts.minOrds)
-    minOrds = ones(1,length(g));
+    minOrds = ones(1,Ng);
 else
-    minOrds = opts.minOrds;
+    if length(g)==length(opts.minOrds)
+        minOrds = opts.minOrds;
+    else
+        assert(length(opts.minOrds)==1);
+        minOrds = opts.minOrds*ones(1,Ng);
+    end
 end
 if ~isfield(opts,'maxOrds') || isempty(opts.maxOrds)
-    maxOrds = 800*ones(1,length(g));
+    maxOrds = 800*ones(1,Ng);
 else
-    maxOrds = opts.maxOrds;
+    if Ng==length(opts.maxOrds)
+        maxOrds = opts.maxOrds;
+    else
+        assert(length(opts.maxOrds)==1);
+        maxOrds = opts.maxOrds*ones(1,Ng);
+    end
+end
+if ~isfield(opts,'ordStep') || isempty(opts.ordStep)
+    ordStep = 1;
+else
+    ordStep = opts.ordStep;
 end
 if ~isfield(opts,'tol') || isempty(opts.tol)
     tol.kernel = 1e-4; % see NOTE 1. 
@@ -83,7 +105,6 @@ else
     parallelize = opts.parallelize;
 end
 
-N = length(g);
 x = arange(1):sz:arange(2);
 y = zeros(size(g));
 z = zeros(size(g));
@@ -94,7 +115,7 @@ end
 
 % Estimate cheby order for kernels ----------------------------------------
 % [30-april-2021]
-% parfor n = 1:N 
+% parfor n = 1:Ng 
 %     d1 = g{n}(x);
 %     for o=minOrds(n):maxOrds(n)
 %         d2 = pvt1(g{n},o,arange,x);
@@ -110,12 +131,12 @@ end
 % end
 
 if parallelize 
-    parfor n = 1:N
-        [y(n),z(n)] = pvt3(g,n,x,minOrds,maxOrds,arange,tolk);
+    parfor n = 1:Ng
+        [y(n),z(n)] = pvt3(g,n,x,minOrds,maxOrds,ordStep,arange,tolk);
     end
 else
-    for n = 1:N
-        [y(n),z(n)] = pvt3(g,n,x,minOrds,maxOrds,arange,tolk);
+    for n = 1:Ng
+        [y(n),z(n)] = pvt3(g,n,x,minOrds,maxOrds,ordStep,arange,tolk);
     end
 end
 
@@ -133,11 +154,11 @@ end
 
 % tight frame [vers=1] or partition of unity [vers=2] tolerance -----------
 while true
-    [d1,G,Gc] = pvt2(x,N,g,y,arange,vers);
+    [d1,G,Gc] = pvt2(x,Ng,g,y,arange,vers);
     if all(d1<tol.tightframe)
         e.tightframe = d1;
         cOrds.tightframe = y;
-        for n = 1:N
+        for n = 1:Ng
             d1 = g{n}(x);
             d2 = pvt1(g{n},y(n),arange,x);
             d3 = abs(d1(:)-d2(:));
@@ -148,7 +169,7 @@ while true
     I = find(d1>=tolf);
     I = I(randperm(length(I))); % enables faster search across kernels in for loop below. 
     d2 = false(size(y));
-    nn = 1:N;
+    nn = 1:Ng;
     for iI=1:length(I)
         d3 = x(I(iI));
         for n=nn(:)' % should be row vector
@@ -196,9 +217,9 @@ z = abs(G-Gc);
 end
 
 %==========================================================================
-function [o,e] = pvt3(g,n,x,minOrds,maxOrds,arange,tolk)
+function [o,e] = pvt3(g,n,x,minOrds,maxOrds,ordStep,arange,tolk)
 d1 = g{n}(x);
-for o=minOrds(n):maxOrds(n)
+for o=minOrds(n):ordStep:maxOrds(n)
     d2 = pvt1(g{n},o,arange,x);
     d3 = abs(d1(:)-d2(:));
     if all(d3<tolk)
